@@ -11,11 +11,12 @@ import (
 
 // Payload is the JSON structure pushed to the Poppit Redis list.
 type Payload struct {
-	Repo     string   `json:"repo"`
-	Branch   string   `json:"branch"`
-	Type     string   `json:"type"`
-	Dir      string   `json:"dir"`
-	Commands []string `json:"commands"`
+	Repo     string            `json:"repo"`
+	Branch   string            `json:"branch"`
+	Type     string            `json:"type"`
+	Dir      string            `json:"dir"`
+	Commands []string          `json:"commands"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // Publisher publishes Poppit payloads to a Redis list.

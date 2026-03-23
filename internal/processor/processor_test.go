@@ -236,3 +236,24 @@ func TestHandle_GlobalTypeAndDirFallback(t *testing.T) {
 		t.Errorf("dir = %q, want %q (global fallback)", p.Dir, "/tmp")
 	}
 }
+
+func TestHandle_MetadataContainsClassifierName(t *testing.T) {
+	cfg := makeConfig()
+	mock := &mockPublisher{}
+	proc := processor.New(cfg, mock, discardLogger)
+
+	msg := `{"classifier_name":"documents","original_path":"/a","new_path":"/b"}`
+	if err := proc.Handle(context.Background(), msg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mock.payloads) != 1 {
+		t.Fatalf("expected 1 payload, got %d", len(mock.payloads))
+	}
+	p := mock.payloads[0]
+	if p.Metadata == nil {
+		t.Fatal("expected metadata to be set, got nil")
+	}
+	if got := p.Metadata["classifier_name"]; got != "documents" {
+		t.Errorf("metadata[classifier_name] = %q, want %q", got, "documents")
+	}
+}
