@@ -85,6 +85,7 @@ func (p *Processor) Handle(ctx context.Context, raw string) error {
 		Type:     poppitType,
 		Dir:      poppitDir,
 		Commands: commands,
+		Metadata: map[string]string{"classifier_name": msg.ClassifierName},
 	}
 
 	if err := p.publisher.Publish(ctx, payload); err != nil {
