@@ -1,0 +1,48 @@
+# Call2Action configuration
+# Copy this file to config.yaml and adjust values for your environment.
+# Do NOT store sensitive information (e.g. passwords) here – use .env instead.
+
+redis:
+  # Redis server address (host:port)
+  addr: "localhost:6379"
+  # Redis database index
+  db: 0
+
+queue:
+  # Name of the Redis list to consume incoming classification messages from
+  name: "call2action:queue"
+
+poppit:
+  # Name of the Redis list that Poppit is monitoring for commands
+  list: "poppit:notifications"
+  # GitHub repository shown in the Poppit payload
+  repo: "its-the-vibe/Call2Action"
+  # Git branch shown in the Poppit payload
+  branch: "refs/heads/main"
+  # Event type shown in the Poppit payload
+  type: "call2action"
+  # Working directory for executed commands
+  dir: "/tmp"
+
+# Classifiers map a classifier_name value from the incoming message to a list
+# of shell command templates.  The following placeholders are substituted with
+# values from the incoming message before the commands are sent to Poppit:
+#
+#   {file_id}         – file_info.id
+#   {file_name}       – file_info.name
+#   {file_title}      – file_info.title
+#   {file_mimetype}   – file_info.mimetype
+#   {file_size}       – file_info.size (bytes, as integer string)
+#   {original_path}   – original_path
+#   {new_path}        – new_path
+#   {classifier_name} – classifier_name
+#   {classified_at}   – classified_at
+#
+classifiers:
+  documents:
+    commands:
+      - "echo 'Processing document {file_name} from {original_path} to {new_path}'"
+  images:
+    commands:
+      - "echo 'Resizing image {file_name}'"
+      - "echo 'Converting {original_path} to {new_path}'"

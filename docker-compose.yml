@@ -1,0 +1,17 @@
+services:
+  call2action:
+    image: call2action:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    read_only: true
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CONFIG_PATH: /app/config.yaml
+    volumes:
+      # Mount your config.yaml into the container (read-only)
+      - ./config.yaml:/app/config.yaml:ro
+    # The Redis server is external; configure its address in config.yaml
+    # and its password in .env (REDIS_PASSWORD).
