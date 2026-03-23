@@ -188,3 +188,51 @@ func TestHandle_AllPlaceholders(t *testing.T) {
 		t.Errorf("command = %q, want %q", mock.payloads[0].Commands[0], want)
 	}
 }
+
+func TestHandle_PerClassifierTypeAndDir(t *testing.T) {
+	cfg := makeConfig()
+	cfg.Classifiers["custom"] = config.ClassifierConfig{
+		Type:     "custom-type",
+		Dir:      "/custom/dir",
+		Commands: []string{"run {original_path}"},
+	}
+	mock := &mockPublisher{}
+	proc := processor.New(cfg, mock, discardLogger)
+
+	msg := `{"classifier_name":"custom","original_path":"/a","new_path":"/b"}`
+	if err := proc.Handle(context.Background(), msg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mock.payloads) != 1 {
+		t.Fatalf("expected 1 payload, got %d", len(mock.payloads))
+	}
+	p := mock.payloads[0]
+	if p.Type != "custom-type" {
+		t.Errorf("type = %q, want %q", p.Type, "custom-type")
+	}
+	if p.Dir != "/custom/dir" {
+		t.Errorf("dir = %q, want %q", p.Dir, "/custom/dir")
+	}
+}
+
+func TestHandle_GlobalTypeAndDirFallback(t *testing.T) {
+	cfg := makeConfig()
+	// documents classifier has no type/dir set – should fall back to global poppit values
+	mock := &mockPublisher{}
+	proc := processor.New(cfg, mock, discardLogger)
+
+	msg := `{"classifier_name":"documents","original_path":"/a","new_path":"/b"}`
+	if err := proc.Handle(context.Background(), msg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mock.payloads) != 1 {
+		t.Fatalf("expected 1 payload, got %d", len(mock.payloads))
+	}
+	p := mock.payloads[0]
+	if p.Type != "call2action" {
+		t.Errorf("type = %q, want %q (global fallback)", p.Type, "call2action")
+	}
+	if p.Dir != "/tmp" {
+		t.Errorf("dir = %q, want %q (global fallback)", p.Dir, "/tmp")
+	}
+}

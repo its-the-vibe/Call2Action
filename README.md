@@ -109,9 +109,11 @@ All settings live in `config.yaml` (gitignored). Use `config.example.yaml` as a 
 | `poppit.list` | Redis list Poppit is monitoring |
 | `poppit.repo` | GitHub repository included in Poppit payloads |
 | `poppit.branch` | Git branch included in Poppit payloads |
-| `poppit.type` | Event type included in Poppit payloads |
-| `poppit.dir` | Working directory for executed commands |
+| `poppit.type` | Default event type for Poppit payloads (overridable per classifier) |
+| `poppit.dir` | Default working directory for commands (overridable per classifier) |
 | `classifiers.<name>.commands` | List of shell command templates for the classifier |
+| `classifiers.<name>.type` | Per-classifier event type (overrides `poppit.type` when set) |
+| `classifiers.<name>.dir` | Per-classifier working directory (overrides `poppit.dir` when set) |
 
 ### Sensitive values (`.env`)
 

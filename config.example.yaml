@@ -19,9 +19,9 @@ poppit:
   repo: "its-the-vibe/Call2Action"
   # Git branch shown in the Poppit payload
   branch: "refs/heads/main"
-  # Event type shown in the Poppit payload
+  # Default event type shown in the Poppit payload (overridable per classifier)
   type: "call2action"
-  # Working directory for executed commands
+  # Default working directory for executed commands (overridable per classifier)
   dir: "/tmp"
 
 # Classifiers map a classifier_name value from the incoming message to a list
@@ -38,11 +38,19 @@ poppit:
 #   {classifier_name} – classifier_name
 #   {classified_at}   – classified_at
 #
+# Each classifier may also override the global poppit.type and poppit.dir:
+#   type     – event type sent in the Poppit payload (optional, falls back to poppit.type)
+#   dir      – working directory for commands (optional, falls back to poppit.dir)
+#
 classifiers:
   documents:
+    type: "classify-document"
+    dir: "/opt/handlers/documents"
     commands:
       - "echo 'Processing document {file_name} from {original_path} to {new_path}'"
   images:
+    type: "classify-image"
+    dir: "/opt/handlers/images"
     commands:
       - "echo 'Resizing image {file_name}'"
       - "echo 'Converting {original_path} to {new_path}'"

@@ -28,6 +28,7 @@ type QueueConfig struct {
 }
 
 // PoppitConfig holds the settings for publishing to Poppit.
+// Type and Dir can be overridden per classifier in ClassifierConfig.
 type PoppitConfig struct {
 	List   string `yaml:"list"`
 	Repo   string `yaml:"repo"`
@@ -37,8 +38,11 @@ type PoppitConfig struct {
 }
 
 // ClassifierConfig holds the list of command templates for a classifier.
+// Type and Dir override the global poppit.type and poppit.dir values when set.
 type ClassifierConfig struct {
 	Commands []string `yaml:"commands"`
+	Type     string   `yaml:"type"`
+	Dir      string   `yaml:"dir"`
 }
 
 // Load reads a YAML configuration file and returns a Config.

@@ -69,11 +69,21 @@ func (p *Processor) Handle(ctx context.Context, raw string) error {
 		commands = append(commands, substitute(tmpl, &msg))
 	}
 
+	poppitType := classifier.Type
+	if poppitType == "" {
+		poppitType = p.cfg.Poppit.Type
+	}
+
+	poppitDir := classifier.Dir
+	if poppitDir == "" {
+		poppitDir = p.cfg.Poppit.Dir
+	}
+
 	payload := publisher.Payload{
 		Repo:     p.cfg.Poppit.Repo,
 		Branch:   p.cfg.Poppit.Branch,
-		Type:     p.cfg.Poppit.Type,
-		Dir:      p.cfg.Poppit.Dir,
+		Type:     poppitType,
+		Dir:      poppitDir,
 		Commands: commands,
 	}
 
