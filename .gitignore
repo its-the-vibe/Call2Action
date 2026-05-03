@@ -30,6 +30,9 @@ go.work.sum
 # Config file (use config.example.yaml as a template)
 config.yaml
 
+# Build output
+call2action
+
 # Editor/IDE
 # .idea/
 # .vscode/

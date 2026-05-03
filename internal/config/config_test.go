@@ -112,3 +112,66 @@ queue:
 		t.Fatal("expected validation error for missing poppit.list")
 	}
 }
+
+func TestLoad_InvalidYAML(t *testing.T) {
+	path := writeTemp(t, "not: valid: yaml: {[}")
+	_, err := config.Load(path)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
+	}
+}
+
+func TestLoad_ClassifierTypeAndDir(t *testing.T) {
+	yml := `
+redis:
+  addr: "localhost:6379"
+queue:
+  name: "call2action:queue"
+poppit:
+  list: "poppit:notifications"
+classifiers:
+  custom:
+    type: "custom-type"
+    dir: "/custom/dir"
+    commands:
+      - "run {original_path}"
+`
+	path := writeTemp(t, yml)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c, ok := cfg.Classifiers["custom"]
+	if !ok {
+		t.Fatal("expected classifier 'custom'")
+	}
+	if c.Type != "custom-type" {
+		t.Errorf("type = %q, want %q", c.Type, "custom-type")
+	}
+	if c.Dir != "/custom/dir" {
+		t.Errorf("dir = %q, want %q", c.Dir, "/custom/dir")
+	}
+	if len(c.Commands) != 1 || c.Commands[0] != "run {original_path}" {
+		t.Errorf("commands = %v, want [run {original_path}]", c.Commands)
+	}
+}
+
+func TestLoad_RedisDB(t *testing.T) {
+	yml := `
+redis:
+  addr: "localhost:6379"
+  db: 3
+queue:
+  name: "call2action:queue"
+poppit:
+  list: "poppit:notifications"
+`
+	path := writeTemp(t, yml)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Redis.DB != 3 {
+		t.Errorf("redis.db = %d, want 3", cfg.Redis.DB)
+	}
+}
