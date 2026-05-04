@@ -1,3 +1,4 @@
+// Package publisher provides functionality for publishing messages to Redis.
 package publisher
 
 import (

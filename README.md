@@ -1,5 +1,7 @@
 # Call2Action
 
+[![CI](https://github.com/its-the-vibe/Call2Action/actions/workflows/ci.yaml/badge.svg)](https://github.com/its-the-vibe/Call2Action/actions/workflows/ci.yaml)
+
 An event-driven command execution framework written in Go. It reads classification messages from a Redis queue, looks up the configured command templates for each `classifier_name`, and dispatches those commands to [Poppit](https://github.com/its-the-vibe/Poppit) via a Redis list.
 
 ---
@@ -184,5 +186,21 @@ Call2Action will pop the message, look up the `documents` classifier in `config.
 ## Running tests
 
 ```bash
+make test
+```
+
+Or directly with Go:
+
+```bash
 go test ./...
+```
+
+## Development
+
+Common tasks are available via the `Makefile`:
+
+```bash
+make build   # compile the binary
+make test    # run all unit tests
+make lint    # run golangci-lint (requires golangci-lint to be installed)
 ```

@@ -1,3 +1,4 @@
+// Package processor provides message processing logic for the Call2Action application.
 package processor
 
 import (

@@ -1,3 +1,4 @@
+// Package config provides configuration loading and validation for the Call2Action application.
 package config
 
 import (
@@ -51,7 +52,12 @@ func Load(path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open config file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			// Log close error but don't fail, as we already read the file
+			_ = err
+		}
+	}()
 
 	var cfg Config
 	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {

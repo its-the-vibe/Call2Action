@@ -1,3 +1,4 @@
+// Package consumer provides the message consumer for processing Redis queue messages.
 package consumer
 
 import (
