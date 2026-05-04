@@ -1,3 +1,4 @@
+// Package main is the entry point for the Call2Action application.
 package main
 
 import (
@@ -17,6 +18,10 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	// Load .env file if present (non-fatal if missing)
@@ -32,7 +37,7 @@ func main() {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		logger.Error("failed to load config", "err", err)
-		os.Exit(1)
+		return 1
 	}
 
 	redisOpts := &redis.Options{
@@ -41,15 +46,23 @@ func main() {
 		DB:       cfg.Redis.DB,
 	}
 	redisClient := redis.NewClient(redisOpts)
-	defer redisClient.Close()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
 
 	if err := redisClient.Ping(ctx).Err(); err != nil {
 		logger.Error("failed to connect to Redis", "addr", cfg.Redis.Addr, "err", err)
-		os.Exit(1)
+		cancel()
+		_ = redisClient.Close()
+		return 1
 	}
+
+	defer cancel()
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			logger.Error("failed to close redis client", "err", err)
+		}
+	}()
+
 	logger.Info("connected to Redis", "addr", cfg.Redis.Addr)
 
 	pub := publisher.New(redisClient, cfg.Poppit.List, logger)
@@ -58,6 +71,7 @@ func main() {
 
 	if err := cons.Run(ctx); err != nil {
 		logger.Error("consumer error", "err", err)
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }

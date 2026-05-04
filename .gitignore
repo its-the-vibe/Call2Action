@@ -31,7 +31,7 @@ go.work.sum
 config.yaml
 
 # Build output
-call2action
+./call2action
 
 # Editor/IDE
 # .idea/
