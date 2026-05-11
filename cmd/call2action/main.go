@@ -66,7 +66,8 @@ func run() int {
 	logger.Info("connected to Redis", "addr", cfg.Redis.Addr)
 
 	pub := publisher.New(redisClient, cfg.Poppit.List, logger)
-	proc := processor.New(cfg, pub, logger)
+	pusher := publisher.NewRedisPusher(redisClient, logger)
+	proc := processor.New(cfg, pub, pusher, logger)
 	cons := consumer.New(redisClient, cfg.Queue.Name, proc.Handle, logger)
 
 	if err := cons.Run(ctx); err != nil {

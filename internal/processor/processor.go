@@ -35,16 +35,22 @@ type Publisher interface {
 	Publish(ctx context.Context, payload publisher.Payload) error
 }
 
+// Pusher is the interface used to push raw messages to a Redis list.
+type Pusher interface {
+	Push(ctx context.Context, key string, values ...string) error
+}
+
 // Processor handles incoming messages and dispatches Poppit commands.
 type Processor struct {
 	cfg       *config.Config
 	publisher Publisher
+	pusher    Pusher
 	logger    *slog.Logger
 }
 
-// New creates a new Processor.
-func New(cfg *config.Config, pub Publisher, logger *slog.Logger) *Processor {
-	return &Processor{cfg: cfg, publisher: pub, logger: logger}
+// New creates a new Processor. pusher may be nil if no classifier uses rpush.
+func New(cfg *config.Config, pub Publisher, pusher Pusher, logger *slog.Logger) *Processor {
+	return &Processor{cfg: cfg, publisher: pub, pusher: pusher, logger: logger}
 }
 
 // Handle processes a raw JSON message string.
@@ -60,37 +66,55 @@ func (p *Processor) Handle(ctx context.Context, raw string) error {
 		return nil
 	}
 
-	if len(classifier.Commands) == 0 {
-		p.logger.Warn("classifier has no commands", "classifier_name", msg.ClassifierName)
+	hasCommands := len(classifier.Commands) > 0
+	hasRPush := len(classifier.RPush) > 0 && classifier.RedisKey != ""
+
+	if !hasCommands && !hasRPush {
+		p.logger.Warn("classifier has no actions configured", "classifier_name", msg.ClassifierName)
 		return nil
 	}
 
-	commands := make([]string, 0, len(classifier.Commands))
-	for _, tmpl := range classifier.Commands {
-		commands = append(commands, substitute(tmpl, &msg))
+	if hasCommands {
+		commands := make([]string, 0, len(classifier.Commands))
+		for _, tmpl := range classifier.Commands {
+			commands = append(commands, substitute(tmpl, &msg))
+		}
+
+		poppitType := classifier.Type
+		if poppitType == "" {
+			poppitType = p.cfg.Poppit.Type
+		}
+
+		poppitDir := classifier.Dir
+		if poppitDir == "" {
+			poppitDir = p.cfg.Poppit.Dir
+		}
+
+		payload := publisher.Payload{
+			Repo:     p.cfg.Poppit.Repo,
+			Branch:   p.cfg.Poppit.Branch,
+			Type:     poppitType,
+			Dir:      poppitDir,
+			Commands: commands,
+			Metadata: map[string]string{"classifier_name": msg.ClassifierName},
+		}
+
+		if err := p.publisher.Publish(ctx, payload); err != nil {
+			return fmt.Errorf("publish poppit payload: %w", err)
+		}
 	}
 
-	poppitType := classifier.Type
-	if poppitType == "" {
-		poppitType = p.cfg.Poppit.Type
-	}
-
-	poppitDir := classifier.Dir
-	if poppitDir == "" {
-		poppitDir = p.cfg.Poppit.Dir
-	}
-
-	payload := publisher.Payload{
-		Repo:     p.cfg.Poppit.Repo,
-		Branch:   p.cfg.Poppit.Branch,
-		Type:     poppitType,
-		Dir:      poppitDir,
-		Commands: commands,
-		Metadata: map[string]string{"classifier_name": msg.ClassifierName},
-	}
-
-	if err := p.publisher.Publish(ctx, payload); err != nil {
-		return fmt.Errorf("publish poppit payload: %w", err)
+	if hasRPush {
+		if p.pusher == nil {
+			return fmt.Errorf("rpush is configured for classifier %q but no pusher is available", msg.ClassifierName)
+		}
+		messages := make([]string, 0, len(classifier.RPush))
+		for _, tmpl := range classifier.RPush {
+			messages = append(messages, substitute(tmpl, &msg))
+		}
+		if err := p.pusher.Push(ctx, classifier.RedisKey, messages...); err != nil {
+			return fmt.Errorf("rpush to %q: %w", classifier.RedisKey, err)
+		}
 	}
 
 	p.logger.Info("processed message",

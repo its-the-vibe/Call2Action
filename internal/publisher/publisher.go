@@ -50,3 +50,27 @@ func (p *Publisher) Publish(ctx context.Context, payload Payload) error {
 	)
 	return nil
 }
+
+// RedisPusher pushes raw string values to an arbitrary Redis list using RPUSH.
+type RedisPusher struct {
+	client *redis.Client
+	logger *slog.Logger
+}
+
+// NewRedisPusher creates a new RedisPusher.
+func NewRedisPusher(client *redis.Client, logger *slog.Logger) *RedisPusher {
+	return &RedisPusher{client: client, logger: logger}
+}
+
+// Push RPUSHes the given values to the specified Redis key.
+func (r *RedisPusher) Push(ctx context.Context, key string, values ...string) error {
+	args := make([]interface{}, len(values))
+	for i, v := range values {
+		args[i] = v
+	}
+	if err := r.client.RPush(ctx, key, args...).Err(); err != nil {
+		return fmt.Errorf("rpush %q: %w", key, err)
+	}
+	r.logger.Info("pushed messages to redis list", "key", key, "count", len(values))
+	return nil
+}

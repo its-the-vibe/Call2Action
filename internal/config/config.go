@@ -38,12 +38,16 @@ type PoppitConfig struct {
 	Dir    string `yaml:"dir"`
 }
 
-// ClassifierConfig holds the list of command templates for a classifier.
+// ClassifierConfig holds the configuration for a classifier.
 // Type and Dir override the global poppit.type and poppit.dir values when set.
+// Commands and Dir are optional when RPush and RedisKey are provided, and vice-versa.
+// If both Commands and RPush are set, both actions are performed.
 type ClassifierConfig struct {
 	Commands []string `yaml:"commands"`
 	Type     string   `yaml:"type"`
 	Dir      string   `yaml:"dir"`
+	RPush    []string `yaml:"rpush"`
+	RedisKey string   `yaml:"redisKey"`
 }
 
 // Load reads a YAML configuration file and returns a Config.

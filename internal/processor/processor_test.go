@@ -26,6 +26,26 @@ func (m *mockPublisher) Publish(_ context.Context, p publisher.Payload) error {
 	return nil
 }
 
+// mockPusher captures Push calls for assertion.
+type mockPusher struct {
+	calls []struct {
+		key    string
+		values []string
+	}
+	err error
+}
+
+func (m *mockPusher) Push(_ context.Context, key string, values ...string) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.calls = append(m.calls, struct {
+		key    string
+		values []string
+	}{key, values})
+	return nil
+}
+
 var discardLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 func makeConfig() *config.Config {
@@ -55,7 +75,7 @@ func makeConfig() *config.Config {
 func TestHandle_KnownClassifier(t *testing.T) {
 	cfg := makeConfig()
 	mock := &mockPublisher{}
-	proc := processor.New(cfg, mock, discardLogger)
+	proc := processor.New(cfg, mock, nil, discardLogger)
 
 	msg := `{
 "file_info": {"id":"F001","name":"report.pdf","title":"Q4","mimetype":"application/pdf","size":1024},
@@ -90,7 +110,7 @@ func TestHandle_KnownClassifier(t *testing.T) {
 func TestHandle_UnknownClassifier(t *testing.T) {
 	cfg := makeConfig()
 	mock := &mockPublisher{}
-	proc := processor.New(cfg, mock, discardLogger)
+	proc := processor.New(cfg, mock, nil, discardLogger)
 
 	msg := `{"classifier_name":"unknown","original_path":"/a","new_path":"/b"}`
 	if err := proc.Handle(context.Background(), msg); err != nil {
@@ -104,7 +124,7 @@ func TestHandle_UnknownClassifier(t *testing.T) {
 func TestHandle_InvalidJSON(t *testing.T) {
 	cfg := makeConfig()
 	mock := &mockPublisher{}
-	proc := processor.New(cfg, mock, discardLogger)
+	proc := processor.New(cfg, mock, nil, discardLogger)
 
 	if err := proc.Handle(context.Background(), "not-json"); err == nil {
 		t.Fatal("expected error for invalid JSON")
@@ -114,7 +134,7 @@ func TestHandle_InvalidJSON(t *testing.T) {
 func TestHandle_MultipleCommands(t *testing.T) {
 	cfg := makeConfig()
 	mock := &mockPublisher{}
-	proc := processor.New(cfg, mock, discardLogger)
+	proc := processor.New(cfg, mock, nil, discardLogger)
 
 	msg := `{
 "classifier_name": "images",
@@ -141,7 +161,7 @@ func TestHandle_MultipleCommands(t *testing.T) {
 func TestHandle_EmptyClassifierCommands(t *testing.T) {
 	cfg := makeConfig()
 	mock := &mockPublisher{}
-	proc := processor.New(cfg, mock, discardLogger)
+	proc := processor.New(cfg, mock, nil, discardLogger)
 
 	msg := `{"classifier_name":"empty","original_path":"/a","new_path":"/b"}`
 	if err := proc.Handle(context.Background(), msg); err != nil {
@@ -155,7 +175,7 @@ func TestHandle_EmptyClassifierCommands(t *testing.T) {
 func TestHandle_PublisherError(t *testing.T) {
 	cfg := makeConfig()
 	mock := &mockPublisher{err: errors.New("redis unavailable")}
-	proc := processor.New(cfg, mock, discardLogger)
+	proc := processor.New(cfg, mock, nil, discardLogger)
 
 	msg := `{"classifier_name":"documents","original_path":"/a","new_path":"/b"}`
 	if err := proc.Handle(context.Background(), msg); err == nil {
@@ -171,7 +191,7 @@ func TestHandle_AllPlaceholders(t *testing.T) {
 		},
 	}
 	mock := &mockPublisher{}
-	proc := processor.New(cfg, mock, discardLogger)
+	proc := processor.New(cfg, mock, nil, discardLogger)
 
 	msg := `{
 "file_info": {"id":"F001","name":"file.pdf","title":"Title","mimetype":"application/pdf","size":512},
@@ -197,7 +217,7 @@ func TestHandle_PerClassifierTypeAndDir(t *testing.T) {
 		Commands: []string{"run {original_path}"},
 	}
 	mock := &mockPublisher{}
-	proc := processor.New(cfg, mock, discardLogger)
+	proc := processor.New(cfg, mock, nil, discardLogger)
 
 	msg := `{"classifier_name":"custom","original_path":"/a","new_path":"/b"}`
 	if err := proc.Handle(context.Background(), msg); err != nil {
@@ -219,7 +239,7 @@ func TestHandle_GlobalTypeAndDirFallback(t *testing.T) {
 	cfg := makeConfig()
 	// documents classifier has no type/dir set – should fall back to global poppit values
 	mock := &mockPublisher{}
-	proc := processor.New(cfg, mock, discardLogger)
+	proc := processor.New(cfg, mock, nil, discardLogger)
 
 	msg := `{"classifier_name":"documents","original_path":"/a","new_path":"/b"}`
 	if err := proc.Handle(context.Background(), msg); err != nil {
@@ -240,7 +260,7 @@ func TestHandle_GlobalTypeAndDirFallback(t *testing.T) {
 func TestHandle_MetadataContainsClassifierName(t *testing.T) {
 	cfg := makeConfig()
 	mock := &mockPublisher{}
-	proc := processor.New(cfg, mock, discardLogger)
+	proc := processor.New(cfg, mock, nil, discardLogger)
 
 	msg := `{"classifier_name":"documents","original_path":"/a","new_path":"/b"}`
 	if err := proc.Handle(context.Background(), msg); err != nil {
@@ -255,5 +275,143 @@ func TestHandle_MetadataContainsClassifierName(t *testing.T) {
 	}
 	if got := p.Metadata["classifier_name"]; got != "documents" {
 		t.Errorf("metadata[classifier_name] = %q, want %q", got, "documents")
+	}
+}
+
+func TestHandle_RPushOnly(t *testing.T) {
+	cfg := makeConfig()
+	cfg.Classifiers["notify"] = config.ClassifierConfig{
+		RedisKey: "notify:queue",
+		RPush:    []string{`{"task":"process","path":"{new_path}"}`},
+	}
+	mock := &mockPublisher{}
+	pusher := &mockPusher{}
+	proc := processor.New(cfg, mock, pusher, discardLogger)
+
+	msg := `{"classifier_name":"notify","original_path":"/a","new_path":"/out/file.pdf"}`
+	if err := proc.Handle(context.Background(), msg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mock.payloads) != 0 {
+		t.Errorf("expected no poppit payloads for rpush-only classifier, got %d", len(mock.payloads))
+	}
+	if len(pusher.calls) != 1 {
+		t.Fatalf("expected 1 push call, got %d", len(pusher.calls))
+	}
+	call := pusher.calls[0]
+	if call.key != "notify:queue" {
+		t.Errorf("push key = %q, want %q", call.key, "notify:queue")
+	}
+	if len(call.values) != 1 {
+		t.Fatalf("expected 1 pushed value, got %d", len(call.values))
+	}
+	want := `{"task":"process","path":"/out/file.pdf"}`
+	if call.values[0] != want {
+		t.Errorf("pushed value = %q, want %q", call.values[0], want)
+	}
+}
+
+func TestHandle_RPushMultipleMessages(t *testing.T) {
+	cfg := makeConfig()
+	cfg.Classifiers["multi"] = config.ClassifierConfig{
+		RedisKey: "multi:queue",
+		RPush: []string{
+			`{"step":"first","file":"{original_path}"}`,
+			`{"step":"second","file":"{new_path}"}`,
+		},
+	}
+	pusher := &mockPusher{}
+	proc := processor.New(cfg, &mockPublisher{}, pusher, discardLogger)
+
+	msg := `{"classifier_name":"multi","original_path":"/src/file","new_path":"/dst/file"}`
+	if err := proc.Handle(context.Background(), msg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(pusher.calls) != 1 {
+		t.Fatalf("expected 1 push call, got %d", len(pusher.calls))
+	}
+	call := pusher.calls[0]
+	if len(call.values) != 2 {
+		t.Fatalf("expected 2 pushed values, got %d", len(call.values))
+	}
+	if call.values[0] != `{"step":"first","file":"/src/file"}` {
+		t.Errorf("values[0] = %q", call.values[0])
+	}
+	if call.values[1] != `{"step":"second","file":"/dst/file"}` {
+		t.Errorf("values[1] = %q", call.values[1])
+	}
+}
+
+func TestHandle_CommandsAndRPush(t *testing.T) {
+	cfg := makeConfig()
+	cfg.Classifiers["both"] = config.ClassifierConfig{
+		Commands: []string{"process {original_path}"},
+		RedisKey: "both:queue",
+		RPush:    []string{`{"done":true,"path":"{new_path}"}`},
+	}
+	mock := &mockPublisher{}
+	pusher := &mockPusher{}
+	proc := processor.New(cfg, mock, pusher, discardLogger)
+
+	msg := `{"classifier_name":"both","original_path":"/src","new_path":"/dst"}`
+	if err := proc.Handle(context.Background(), msg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mock.payloads) != 1 {
+		t.Errorf("expected 1 poppit payload, got %d", len(mock.payloads))
+	}
+	if len(pusher.calls) != 1 {
+		t.Errorf("expected 1 push call, got %d", len(pusher.calls))
+	}
+	if mock.payloads[0].Commands[0] != "process /src" {
+		t.Errorf("command = %q, want %q", mock.payloads[0].Commands[0], "process /src")
+	}
+	if pusher.calls[0].values[0] != `{"done":true,"path":"/dst"}` {
+		t.Errorf("pushed value = %q", pusher.calls[0].values[0])
+	}
+}
+
+func TestHandle_RPushNoPusherConfigured(t *testing.T) {
+	cfg := makeConfig()
+	cfg.Classifiers["notify"] = config.ClassifierConfig{
+		RedisKey: "notify:queue",
+		RPush:    []string{`{"task":"process"}`},
+	}
+	proc := processor.New(cfg, &mockPublisher{}, nil, discardLogger)
+
+	msg := `{"classifier_name":"notify","original_path":"/a","new_path":"/b"}`
+	if err := proc.Handle(context.Background(), msg); err == nil {
+		t.Fatal("expected error when pusher is nil but rpush is configured")
+	}
+}
+
+func TestHandle_RPushPusherError(t *testing.T) {
+	cfg := makeConfig()
+	cfg.Classifiers["notify"] = config.ClassifierConfig{
+		RedisKey: "notify:queue",
+		RPush:    []string{`{"task":"process"}`},
+	}
+	pusher := &mockPusher{err: errors.New("redis unavailable")}
+	proc := processor.New(cfg, &mockPublisher{}, pusher, discardLogger)
+
+	msg := `{"classifier_name":"notify","original_path":"/a","new_path":"/b"}`
+	if err := proc.Handle(context.Background(), msg); err == nil {
+		t.Fatal("expected error when pusher fails")
+	}
+}
+
+func TestHandle_RPushMissingRedisKey(t *testing.T) {
+	cfg := makeConfig()
+	// RPush is set but RedisKey is empty – should be treated as no rpush action
+	cfg.Classifiers["incomplete"] = config.ClassifierConfig{
+		RPush: []string{`{"task":"process"}`},
+		// RedisKey intentionally omitted
+	}
+	proc := processor.New(cfg, &mockPublisher{}, &mockPusher{}, discardLogger)
+
+	msg := `{"classifier_name":"incomplete","original_path":"/a","new_path":"/b"}`
+	// No commands and no redisKey means "no actions configured" – should return nil
+	if err := proc.Handle(context.Background(), msg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
