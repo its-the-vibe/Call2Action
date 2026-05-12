@@ -158,6 +158,80 @@ classifiers:
 	}
 }
 
+func TestLoad_ClassifierRPushAndRedisKey(t *testing.T) {
+	yml := `
+redis:
+  addr: "localhost:6379"
+queue:
+  name: "call2action:queue"
+poppit:
+  list: "poppit:notifications"
+classifiers:
+  notify:
+    redisKey: "notify:queue"
+    rpush:
+      - '{"taskName": "nextTask", "inputFile": "{new_path}"}'
+`
+	path := writeTemp(t, yml)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c, ok := cfg.Classifiers["notify"]
+	if !ok {
+		t.Fatal("expected classifier 'notify'")
+	}
+	if c.RedisKey != "notify:queue" {
+		t.Errorf("redisKey = %q, want %q", c.RedisKey, "notify:queue")
+	}
+	if len(c.RPush) != 1 {
+		t.Fatalf("expected 1 rpush entry, got %d", len(c.RPush))
+	}
+	want := `{"taskName": "nextTask", "inputFile": "{new_path}"}`
+	if c.RPush[0] != want {
+		t.Errorf("rpush[0] = %q, want %q", c.RPush[0], want)
+	}
+	if len(c.Commands) != 0 {
+		t.Errorf("expected no commands for rpush-only classifier, got %v", c.Commands)
+	}
+}
+
+func TestLoad_ClassifierCommandsAndRPush(t *testing.T) {
+	yml := `
+redis:
+  addr: "localhost:6379"
+queue:
+  name: "call2action:queue"
+poppit:
+  list: "poppit:notifications"
+classifiers:
+  both:
+    commands:
+      - "process {original_path}"
+    redisKey: "both:queue"
+    rpush:
+      - '{"done":true}'
+`
+	path := writeTemp(t, yml)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c, ok := cfg.Classifiers["both"]
+	if !ok {
+		t.Fatal("expected classifier 'both'")
+	}
+	if len(c.Commands) != 1 {
+		t.Fatalf("expected 1 command, got %d", len(c.Commands))
+	}
+	if c.RedisKey != "both:queue" {
+		t.Errorf("redisKey = %q, want %q", c.RedisKey, "both:queue")
+	}
+	if len(c.RPush) != 1 {
+		t.Fatalf("expected 1 rpush entry, got %d", len(c.RPush))
+	}
+}
+
 func TestLoad_RedisDB(t *testing.T) {
 	yml := `
 redis:

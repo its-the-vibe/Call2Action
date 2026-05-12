@@ -113,9 +113,11 @@ All settings live in `config.yaml` (gitignored). Use `config.example.yaml` as a 
 | `poppit.branch` | Git branch included in Poppit payloads |
 | `poppit.type` | Default event type for Poppit payloads (overridable per classifier) |
 | `poppit.dir` | Default working directory for commands (overridable per classifier) |
-| `classifiers.<name>.commands` | List of shell command templates for the classifier |
+| `classifiers.<name>.commands` | List of shell command templates for the classifier (optional if `rpush`/`redisKey` are set) |
 | `classifiers.<name>.type` | Per-classifier event type (overrides `poppit.type` when set) |
 | `classifiers.<name>.dir` | Per-classifier working directory (overrides `poppit.dir` when set) |
+| `classifiers.<name>.redisKey` | Redis list to push messages to (required when `rpush` is set) |
+| `classifiers.<name>.rpush` | List of message templates to RPUSH to `redisKey` (optional if `commands` are set) |
 
 ### Sensitive values (`.env`)
 
