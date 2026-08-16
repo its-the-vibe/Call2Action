@@ -1,6 +1,6 @@
 module github.com/its-the-vibe/Call2Action
 
-go 1.26.5
+go 1.26.6
 
 require (
 	github.com/joho/godotenv v1.5.1
