@@ -1,6 +1,7 @@
 services:
   call2action:
-    image: call2action:latest
+    image: ghcr.io/its-the-vibe/call2action:latest
+    pull_policy: always
     build:
       context: .
       dockerfile: Dockerfile
