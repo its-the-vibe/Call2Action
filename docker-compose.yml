@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    user: "${UID:-65532}:${GID:-65532}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     read_only: true
