@@ -54,7 +54,10 @@ func (c *Consumer) Run(ctx context.Context) error {
 				c.logger.Info("consumer stopped")
 				return nil
 			}
-			return fmt.Errorf("blpop %q: %w", c.queueName, err)
+
+			c.logger.Error(fmt.Sprintf("blpop %q:", c.queueName), "err", err)
+			time.Sleep(1 * time.Second)
+			continue
 		}
 
 		// BLPop returns [key, value]
